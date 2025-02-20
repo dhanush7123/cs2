@@ -1,41 +1,83 @@
 clear; clc;
-N = 1000; M = 4; loop_bw = 0.01; SNR_dB = 10; phase_offset = pi/3;
-
-% Generate symbols and noise
-tx_symbols = exp(1j * (2 * pi * (0:M-1))/ M);
-tx_data = randi([0,M-1], N, 1);
-tx_signal = tx_symbols(tx_data + 1);
-noise = (1/sqrt(2*10^(SNR_dB/10))) * (randn(N,1) + 1j*randn(N,1));
-rx_signal = tx_signal .* exp(1j * phase_offset) + noise;
- 
-% PLL-Based Phase Estimation
-pll_phase_est = zeros(N,1);
-pll_phase = 0;
+N = 1e3;
+snrDb = 10;
+M = 4;
+bw = 0.01;
+truePhase = pi / 3;
+txSyms = exp(1j * (2 * pi * (0:M-1) / M));
+txData = randi([0 M-1], N, 1);
+txSig = txSyms(txData + 1);
+noise = (1/sqrt(2*10^(snrDb/10))) * (randn(N, 1) + 1j * randn(N, 1));
+rxSig = txSig .* exp(1j * truePhase) + noise;
+estPhaseMl = angle(sum(conj(txSig) .* rxSig));
+phaseErrPll = zeros(N, 1);
+estPhasePll = zeros(N, 1);
+currPhasePll = 0;
 for n = 1:N
-    error = angle(rx_signal(n) * exp(-1j * pll_phase));
-    pll_phase = pll_phase + loop_bw * error;
-    pll_phase_est(n) = pll_phase;
+    phaseErrPll(n) = angle(rxSig(n) * exp(-1j * currPhasePll));
+    currPhasePll = currPhasePll + bw * phaseErrPll(n);
+    estPhasePll(n) = currPhasePll;
 end
-corrected_rx = rx_signal .* exp(-1j * pll_phase_est);
+corrRxSig = rxSig .* exp(-1j * estPhasePll);
 
-% Plot Received and Corrected Signals
 figure;
-subplot(2,1,1); scatter(real(rx_signal), imag(rx_signal), 'filled'); title('Received Signal'); xlabel('I'); ylabel('Q'); axis equal;
-subplot(2,1,2); scatter(real(corrected_rx), imag(corrected_rx), 'filled'); title('Corrected Signal'); xlabel('I'); ylabel('Q'); axis equal;
+subplot(2, 1, 1);
+scatter(real(rxSig), imag(rxSig), 'filled');
+title('Rx Signal Constellation');
+xlabel('I');
+ylabel('Q');
+axis equal;
+grid on;
 
-% Decision-Directed and Non-Decision-Directed Loops
-dd_phase_est = zeros(N,1); ndd_phase_est = zeros(N,1);
-dd_phase = 0; ndd_phase = 0;
+subplot(2, 1, 2);
+scatter(real(corrRxSig), imag(corrRxSig), 'filled');
+title('Corrected Signal Constellation');
+xlabel('I');
+ylabel('Q');
+axis equal;
+grid on;
+
+snrDbRange = 0:2:20;
+phaseErrVar = zeros(length(snrDbRange), 1);
+for idx = 1:length(snrDbRange)
+    snrDb = snrDbRange(idx);
+    noiseVar = 1/(2*10^(snrDb/10));
+    noise = sqrt(noiseVar) * (randn(N, 1) + 1j * randn(N, 1));
+    rxSig = exp(1j * truePhase) + noise;
+    estPhase = angle(sum(rxSig));
+    phaseErrVar(idx) = var(angle(rxSig) - truePhase);
+end
+figure;
+plot(snrDbRange, phaseErrVar);
+xlabel('SNR (dB)');
+ylabel('Phase Error Variance');
+title('Noise Effect on Phase Est.');
+phaseErrDd = zeros(N, 1);
+phaseErrNdd = zeros(N, 1);
+estPhaseDd = zeros(N, 1);
+estPhaseNdd = zeros(N, 1);
+currPhaseDd = 0;
+currPhaseNdd = 0;
 for n = 1:N
-    rx = tx_signal(n) * exp(1j * phase_offset) + noise(n);
-    detected = exp(1j * round(angle(rx) * M / (2*pi)) * 2*pi/M);
-    dd_phase = dd_phase + loop_bw * angle(detected * exp(-1j * dd_phase));
-    ndd_phase = ndd_phase + loop_bw * angle(rx * exp(-1j * ndd_phase));
-    dd_phase_est(n) = dd_phase;
-    ndd_phase_est(n) = ndd_phase;
+    noise = (1/sqrt(2*10^(snrDb))) * (randn + 1j * randn);
+    rxSig = txSig(n) * exp(1j * truePhase) + noise;
+    detSym = exp(1j * round(angle(rxSig) * M / (2 * pi)) * 2 * pi / M);
+    phaseErrDd(n) = angle(detSym * exp(-1j * currPhaseDd));
+    currPhaseDd = currPhaseDd + bw * phaseErrDd(n);
+    estPhaseDd(n) = currPhaseDd;
+    phaseErrNdd(n) = angle(rxSig * exp(-1j * currPhaseNdd));
+    currPhaseNdd = currPhaseNdd + bw * phaseErrNdd(n);
+    estPhaseNdd(n) = currPhaseNdd;
 end
 
-% Plot Phase Estimates
 figure;
-subplot(2,1,1); plot(dd_phase_est); title('Decision-Directed Phase Estimate');
-subplot(2,1,2); plot(ndd_phase_est); title('Non-Decision-Directed Phase Estimate');
+subplot(2, 1, 1);
+plot(1:N, estPhaseDd);
+title('DD Phase Estimate');
+xlabel('Samples');
+ylabel('Phase (rad)');
+subplot(2, 1, 2);
+plot(1:N, estPhaseNdd);
+title('NDD Phase Estimate');
+xlabel('Samples');
+ylabel('Phase (rad)');
