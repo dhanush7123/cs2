@@ -1,0 +1,53 @@
+clear all;
+clc;
+N = 10^5;
+MOD_TYPE = 'PAM';
+M = 4;
+d = ceil(M.*rand(1,N));
+u = modulate(MOD_TYPE,M,d);
+figure; stem(real(u));
+title('PAM modulated symbols u(k)');
+xlim([0 20])
+ylim([-5 5])
+
+L=4;
+v=[u;zeros(L-1,length(u))];
+v=v(:).';
+figure;stem(real(v)); title('Oversampled symbols v(n)');
+xlim([0 150])
+ylim([-5 5])
+
+beta = 1;
+Nsym=8;
+L=4;
+[p,t,filtDelay] = srrcFunction(beta,L,Nsym);
+s=conv(v,p,'full');
+figure; plot(real(s),'r'); title('Pulse shaped symbols s(n)');
+xlim([0 150])
+ylim([-5 5])
+
+EbN0dB = 1000;
+snr = 10*log10(log2(M))+EbN0dB;
+r = add_awgn_noise(s,snr,L);
+figure; plot(real(r),'r');title('Received signal r(n)');
+xlim([0 150])
+ylim([-5 5])
+
+vCap=conv(r,p,'full');
+figure; plot(real(vCap),'r');
+title('After matched filtering $\hat{v}$(n)','Interpreter','Latex');
+xlim([0 150])
+ylim([-20 20])
+
+uCap = vCap(2*filtDelay+1:L:end-(2*filtDelay))/L;
+figure; stem(real(uCap)); hold on;
+title('After symbol rate sampler $\hat{u}$(n)',...
+'Interpreter','Latex');
+dCap = demodulate(MOD_TYPE,M,uCap);
+xlim([0 20])
+ylim([-5 5])
+
+figure;
+plotEyeDiagram(vCap,L,3*L,2*filtDelay,100);
+xlim([0 3])
+ylim([-15 15])
