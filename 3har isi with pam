@@ -1,0 +1,56 @@
+clc; close all;
+
+%Parameters
+N=10^5; 
+M=4;    
+L=4;    
+Beta=1.0; 
+Nsym=8;  
+EbNodB=10;
+
+%PAM Modulation
+d=randi([0 M-1], 1, N); 
+v=pammod(d, M);
+figure; stem(real(v)); title('PAM Modulated Signal'); 
+xlim([0 20]); ylim([-5 5]);
+
+%Oversampling
+v_up=upsample(v,L);
+figure; stem(real(v_up)); title('Oversampled Signal');
+xlim([0 150]); ylim([-5 5]);
+
+%Generate Pulse shaping filter
+p=rcosdesign(Beta,Nsym, L, 'sqrt');
+filtdelay=(length(p)-1)/2;
+s=conv(v_up, p,'full');
+figure; plot(real(s),'r'); title('Pulse shaping filter s(n)');
+xlim([0 150]); ylim([-5 5]);
+
+%Add AWGN
+SNR=10*log10(log2(M))+EbNodB;
+r=awgn(s, SNR,'measured');
+figure; plot(real(r),'r'); title('Received signal r(n)');
+xlim([0 150]); ylim([-5 5]);
+
+%Matched Filtering
+v_cap=conv(r,p,'full');
+figure; stem(v_cap,'r'); title('After Matched Filtering');
+xlim([0 150]); ylim([-5 5]);
+
+%Downsampling
+u_cap=v_cap(2*filtdelay+1:L:end-2*filtdelay)/L;
+figure; stem(u_cap,'r'); title('After Sampling at symbol rate');
+xlim([0 150]); ylim([-5 5]);
+
+%PAM Demodulation
+d_cap=pamdemod(u_cap, M);
+figure; stem(d_cap,'r'); title('Demodulated Signal');
+xlim([0 150]); ylim([-5 5]);
+
+
+%Eye Diagram
+offset=mod(length(v_cap),L);
+eyediagram(v_cap(offset+1:end),L);
+title('Eye Diagram');
+
+
