@@ -1,0 +1,53 @@
+num_bits = 20;
+samples_per_bit = 120;
+num_carriers = 6;
+carrier_freqs = [2, 4, 6, 8, 10, 12] * 1e3;
+fs = 120e3;
+
+bit_sequence = randi([0, 1], 1, num_bits);
+bpsk_symbols = 2 * bit_sequence - 1;
+
+t = (0:(num_bits * samples_per_bit) - 1) / fs;
+
+carrier_base = cos(2 * pi * 1e3 * t);
+bpsk_signal = repelem(bpsk_symbols, samples_per_bit) .* carrier_base;
+spread_signal = zeros(1, length(t));
+
+for i = 1:num_bits
+    f_idx = randi([1, num_carriers]);
+    t_bit = t((i-1) * samples_per_bit + 1 : i * samples_per_bit);
+    spread_signal((i-1) * samples_per_bit + 1 : i * samples_per_bit) = cos(2 * pi * carrier_freqs(f_idx) * t_bit);
+end
+
+fhss_signal = bpsk_signal .* spread_signal;
+bpsk_demodulated = fhss_signal .* spread_signal;
+demodulated_signal = lowpass(bpsk_demodulated, 1e3, fs);
+
+figure;
+subplot(4,1,1); 
+plot(t, repelem(bpsk_symbols, samples_per_bit)); 
+title('Original Bit Sequence'); axis tight;
+subplot(4,1,2); 
+plot(t, bpsk_signal); 
+title('BPSK Modulated Signal'); axis tight;
+
+subplot(4,1,3); 
+plot(t, spread_signal); 
+title('Spread Signal (FHSS Carriers)'); 
+axis tight;
+
+subplot(4,1,4); 
+plot(t, fhss_signal); 
+title('FHSS Modulated Signal'); 
+axis tight;
+
+figure;
+subplot(2,1,1); 
+plot(t, bpsk_demodulated); 
+title('Demodulated FHSS Signal'); 
+axis tight;
+
+subplot(2,1,2); 
+plot(t, demodulated_signal); 
+title('Recovered Bit Sequence'); 
+axis tight;
